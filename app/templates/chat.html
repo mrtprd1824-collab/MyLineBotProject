@@ -28,11 +28,12 @@
 
 <script>
     let currentUserId = null; // ตัวแปรสำหรับเก็บ User ID ที่กำลังดูอยู่
-    
+
     // --- ฟังก์ชันสำหรับสร้าง HTML ของแต่ละส่วน ---
     function createConversationHTML(conv) {
+        // ... (ฟังก์ชันนี้เหมือนเดิม) ...
         return `
-            <a href="#" class="list-group-item list-group-item-action conversation-link" data-userid="${conv.user_id}">
+            <a href="#${conv.user_id}" class="list-group-item list-group-item-action conversation-link" data-userid="${conv.user_id}">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">
                         <img src="${conv.picture_url}" alt=" " class="rounded-circle me-2" style="width: 24px; height: 24px;">
@@ -46,6 +47,7 @@
     }
 
     function createMessageHTML(msg) {
+        // ... (ฟังก์ชันนี้เหมือนเดิม) ...
         const isAdmin = msg.message_text.startsWith('[Admin]:');
         const alignClass = isAdmin ? 'text-end' : 'text-start';
         const sender = isAdmin ? 'คุณ' : 'ลูกค้า';
@@ -66,31 +68,42 @@
 
     // --- ฟังก์ชันสำหรับดึงข้อมูลและอัปเดตหน้าเว็บ ---
     async function updateConversationList() {
+        // ... (ฟังก์ชันนี้เหมือนเดิม) ...
         const response = await fetch('/api/conversations');
         const conversations = await response.json();
         const listElement = document.getElementById('conversation-list');
-        
+
         listElement.innerHTML = conversations.map(createConversationHTML).join('');
-        
-        // ทำให้คลิกได้อีกครั้งหลังจากอัปเดต
+
         addClickListenersToConversations();
     }
 
-    async function loadMessages(userId) {
+    // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    // --- ส่วนที่แก้ไข: เพิ่ม autoScroll parameter ---
+    async function loadMessages(userId, autoScroll = false) {
         currentUserId = userId;
         const messageWindow = document.getElementById('message-window');
-        messageWindow.innerHTML = '<p class="text-center">กำลังโหลด...</p>';
-        
+
+        // ถ้าไม่ใช่การโหลดครั้งแรก ให้ไม่ต้องแสดง "กำลังโหลด..." เพื่อลดการกระพริบ
+        if (messageWindow.innerHTML.includes('กรุณาเลือกห้องแชท')) {
+             messageWindow.innerHTML = '<p class="text-center">กำลังโหลด...</p>';
+        }
+
         const response = await fetch(`/api/messages/${userId}`);
         const messages = await response.json();
-        
+
         messageWindow.innerHTML = messages.map(createMessageHTML).join('');
-        messageWindow.scrollTop = messageWindow.scrollHeight;
+
+        // เงื่อนไขใหม่: จะเลื่อนลงล่าสุดก็ต่อเมื่อ autoScroll เป็น true เท่านั้น
+        if (autoScroll) {
+            messageWindow.scrollTop = messageWindow.scrollHeight;
+        }
 
         document.getElementById('chat-header').innerText = `ประวัติการแชทกับ: ${userId}`;
         document.getElementById('reply-user-id').value = userId;
         document.getElementById('reply-box').style.display = 'block';
     }
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     // --- ฟังก์ชันจัดการ Event ---
     function addClickListenersToConversations() {
@@ -100,12 +113,14 @@
                 document.querySelectorAll('.conversation-link').forEach(l => l.classList.remove('active'));
                 this.classList.add('active');
                 const userId = this.dataset.userid;
-                loadMessages(userId);
+                // เมื่อคลิกครั้งแรก ให้เลื่อนลงล่าสุดเสมอ
+                loadMessages(userId, true);
             });
         });
     }
 
     async function handleReplySubmit(event) {
+        // ... (ฟังก์ชันนี้เหมือนเดิม) ...
         event.preventDefault();
         const form = event.target;
         const formData = new FormData(form);
@@ -117,10 +132,9 @@
         });
 
         if (response.ok) {
-            // ถ้าส่งสำเร็จ ให้โหลดข้อความใหม่ทันที และล้างช่องพิมพ์
             replyInput.value = '';
-            loadMessages(currentUserId);
-            updateConversationList(); // อัปเดตข้อความล่าสุด
+            loadMessages(currentUserId, true); // เมื่อตอบกลับ ให้เลื่อนลงล่าสุด
+            updateConversationList();
         } else {
             alert('เกิดข้อผิดพลาดในการส่งข้อความ');
         }
@@ -128,22 +142,27 @@
 
     // --- เริ่มการทำงาน ---
     document.addEventListener('DOMContentLoaded', () => {
-        // โหลดรายชื่อแชทครั้งแรก
         updateConversationList();
+        setInterval(updateConversationList, 10000); // อัปเดตรายชื่อแชททุก 10 วิ
 
-        // ตั้งเวลาให้โหลดรายชื่อแชทใหม่ทุกๆ 5 วินาที (Polling)
-        setInterval(updateConversationList, 5000);
-
-        // ตั้งเวลาให้โหลดข้อความในห้องที่เปิดอยู่ใหม่ทุก 5 วินาที
+        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+        // --- ส่วนที่แก้ไข: เพิ่มการตรวจสอบการ Scroll ก่อนโหลดข้อความใหม่ ---
         setInterval(() => {
-            if (currentUserId) {
-                loadMessages(currentUserId);
+            const messageWindow = document.getElementById('message-window');
+            // ตรวจสอบว่า user เลื่อนลงมาเกือบสุดจอแล้วหรือยัง
+            const isScrolledToBottom = messageWindow.scrollHeight - messageWindow.clientHeight <= messageWindow.scrollTop + 50;
+
+            if (currentUserId && isScrolledToBottom) {
+                // ถ้าเลื่อนลงมาสุดแล้วเท่านั้น ถึงจะโหลดข้อความใหม่พร้อม auto-scroll
+                loadMessages(currentUserId, true);
+            } else if (currentUserId) {
+                // ถ้าเลื่อนขึ้นไปอ่านอยู่ ให้โหลดข้อความใหม่ แต่ "ไม่" auto-scroll
+                loadMessages(currentUserId, false);
             }
         }, 5000);
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-        // เพิ่ม Event Listener ให้ฟอร์มตอบกลับ
         document.getElementById('reply-form').addEventListener('submit', handleReplySubmit);
     });
-
 </script>
 {% endblock %}
