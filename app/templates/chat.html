@@ -11,9 +11,15 @@
         tr:nth-child(even) { background-color: #f9f9f9; }
         .reply-form { display: flex; }
         .reply-form input[type="text"] { flex-grow: 1; margin-right: 5px; }
+        .header-actions { margin-bottom: 1em; }
     </style>
 </head>
 <body>
+    <div class="header-actions">
+        <span>Logged in as: <strong>{{ current_user.username }}</strong></span>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+
     <h1>📖 บันทึกข้อความจาก LINE OA</h1>
     <table>
         <thead>
@@ -21,17 +27,18 @@
                 <th style="width:150px;">เวลาที่ส่ง</th>
                 <th style="width:250px;">User ID</th>
                 <th>ข้อความ</th>
-                <th style="width:250px;">ตอบกลับ</th> </tr>
+                <th style="width:250px;">ตอบกลับ</th>
+            </tr>
         </thead>
         <tbody>
             {% for message in messages %}
             <tr>
-                <td>{{ message['timestamp'] }}</td>
-                <td>{{ message['user_id'] }}</td>
-                <td>{{ message['message_text'] }}</td>
+                <td>{{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ message.user_id }}</td>
+                <td>{{ message.message_text }}</td>
                 <td>
-                    <form class="reply-form" action="/send_reply" method="post">
-                        <input type="hidden" name="user_id" value="{{ message['user_id'] }}">
+                    <form class="reply-form" action="{{ url_for('send_reply') }}" method="post">
+                        <input type="hidden" name="user_id" value="{{ message.user_id }}">
                         <input type="text" name="reply_message" placeholder="พิมพ์ข้อความตอบกลับ..." required>
                         <button type="submit">ส่ง</button>
                     </form>
