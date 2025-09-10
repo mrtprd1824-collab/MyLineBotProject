@@ -1,55 +1,149 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin - Chat Log</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top;}
-        th { background-color: #f2f2f2; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .reply-form { display: flex; }
-        .reply-form input[type="text"] { flex-grow: 1; margin-right: 5px; }
-        .header-actions { margin-bottom: 1em; }
-    </style>
-</head>
-<body>
-    <div class="header-actions">
-        <span>Logged in as: <strong>{{ current_user.username }}</strong></span>
-        <a href="{{ url_for('logout') }}">Logout</a>
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <h3>ห้องแชททั้งหมด</h3>
+        <div id="conversation-list" class="list-group mt-3">
+            </div>
     </div>
 
-    <h1>📖 บันทึกข้อความจาก LINE OA</h1>
-    <table>
-        <thead>
-            <tr>
-                <th style="width:150px;">เวลาที่ส่ง</th>
-                <th style="width:250px;">User ID</th>
-                <th>ข้อความ</th>
-                <th style="width:250px;">ตอบกลับ</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for message in messages %}
-            <tr>
-                <td>{{ message.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>{{ message.user_id }}</td>
-                <td>{{ message.message_text }}</td>
-                <td>
-                    <form class="reply-form" action="{{ url_for('send_reply') }}" method="post">
-                        <input type="hidden" name="user_id" value="{{ message.user_id }}">
-                        <input type="text" name="reply_message" placeholder="พิมพ์ข้อความตอบกลับ..." required>
-                        <button type="submit">ส่ง</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="4" style="text-align: center;">ยังไม่มีข้อความในระบบ</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>
+    <div class="col-md-8">
+        <h3 id="chat-header">เลือกห้องแชทเพื่อเริ่ม</h3>
+        <div id="message-window" class="chat-history mt-3" style="height: 60vh; overflow-y: auto; border: 1px solid #ccc; padding: 1em; background-color: #f9f9f9;">
+            <p class="text-muted text-center">กรุณาเลือกห้องแชทจากทางซ้าย</p>
+        </div>
+        
+        <div id="reply-box" class="reply-box mt-3" style="display: none;">
+            <form id="reply-form">
+                <input type="hidden" id="reply-user-id" name="user_id" value="">
+                <div class="input-group">
+                    <input type="text" id="reply-message-text" name="reply_message" class="form-control" placeholder="พิมพ์ข้อความตอบกลับ..." required>
+                    <button class="btn btn-primary" type="submit">ส่ง</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentUserId = null; // ตัวแปรสำหรับเก็บ User ID ที่กำลังดูอยู่
+    
+    // --- ฟังก์ชันสำหรับสร้าง HTML ของแต่ละส่วน ---
+    function createConversationHTML(conv) {
+        return `
+            <a href="#" class="list-group-item list-group-item-action conversation-link" data-userid="${conv.user_id}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">
+                        <img src="${conv.picture_url}" alt=" " class="rounded-circle me-2" style="width: 24px; height: 24px;">
+                        ${conv.display_name}
+                    </h6>
+                    <small>${conv.last_timestamp}</small>
+                </div>
+                <p class="mb-1 small text-muted">${conv.last_message}</p>
+            </a>
+        `;
+    }
+
+    function createMessageHTML(msg) {
+        const isAdmin = msg.message_text.startsWith('[Admin]:');
+        const alignClass = isAdmin ? 'text-end' : 'text-start';
+        const sender = isAdmin ? 'คุณ' : 'ลูกค้า';
+        const textClass = isAdmin ? 'text-success' : '';
+        const cleanText = msg.message_text.replace('[Admin]:', '').trim();
+
+        return `
+            <div class="mb-3 ${alignClass}">
+                <p class="mb-0">
+                    <strong class="${textClass}">${sender}:</strong>
+                    ${cleanText}
+                    <br>
+                    <small class="text-muted">${msg.timestamp}</small>
+                </p>
+            </div>
+        `;
+    }
+
+    // --- ฟังก์ชันสำหรับดึงข้อมูลและอัปเดตหน้าเว็บ ---
+    async function updateConversationList() {
+        const response = await fetch('/api/conversations');
+        const conversations = await response.json();
+        const listElement = document.getElementById('conversation-list');
+        
+        listElement.innerHTML = conversations.map(createConversationHTML).join('');
+        
+        // ทำให้คลิกได้อีกครั้งหลังจากอัปเดต
+        addClickListenersToConversations();
+    }
+
+    async function loadMessages(userId) {
+        currentUserId = userId;
+        const messageWindow = document.getElementById('message-window');
+        messageWindow.innerHTML = '<p class="text-center">กำลังโหลด...</p>';
+        
+        const response = await fetch(`/api/messages/${userId}`);
+        const messages = await response.json();
+        
+        messageWindow.innerHTML = messages.map(createMessageHTML).join('');
+        messageWindow.scrollTop = messageWindow.scrollHeight;
+
+        document.getElementById('chat-header').innerText = `ประวัติการแชทกับ: ${userId}`;
+        document.getElementById('reply-user-id').value = userId;
+        document.getElementById('reply-box').style.display = 'block';
+    }
+
+    // --- ฟังก์ชันจัดการ Event ---
+    function addClickListenersToConversations() {
+        document.querySelectorAll('.conversation-link').forEach(link => {
+            link.addEventListener('click', function(event) {
+                event.preventDefault();
+                document.querySelectorAll('.conversation-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+                const userId = this.dataset.userid;
+                loadMessages(userId);
+            });
+        });
+    }
+
+    async function handleReplySubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const replyInput = document.getElementById('reply-message-text');
+
+        const response = await fetch('/send_reply', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            // ถ้าส่งสำเร็จ ให้โหลดข้อความใหม่ทันที และล้างช่องพิมพ์
+            replyInput.value = '';
+            loadMessages(currentUserId);
+            updateConversationList(); // อัปเดตข้อความล่าสุด
+        } else {
+            alert('เกิดข้อผิดพลาดในการส่งข้อความ');
+        }
+    }
+
+    // --- เริ่มการทำงาน ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // โหลดรายชื่อแชทครั้งแรก
+        updateConversationList();
+
+        // ตั้งเวลาให้โหลดรายชื่อแชทใหม่ทุกๆ 5 วินาที (Polling)
+        setInterval(updateConversationList, 5000);
+
+        // ตั้งเวลาให้โหลดข้อความในห้องที่เปิดอยู่ใหม่ทุก 5 วินาที
+        setInterval(() => {
+            if (currentUserId) {
+                loadMessages(currentUserId);
+            }
+        }, 5000);
+
+        // เพิ่ม Event Listener ให้ฟอร์มตอบกลับ
+        document.getElementById('reply-form').addEventListener('submit', handleReplySubmit);
+    });
+
+</script>
+{% endblock %}

@@ -30,3 +30,15 @@ class Message(db.Model):
 
     def __repr__(self):
         return f'<Message {self.message_text}>'
+
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+# --- ส่วนที่เพิ่มเข้ามาใหม่ ---
+class LineProfile(db.Model):
+    user_id = db.Column(db.String(64), primary_key=True) # ใช้ LINE User ID เป็น Primary Key
+    display_name = db.Column(db.String(128), index=True)
+    picture_url = db.Column(db.String(256))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<LineProfile {self.display_name}>'
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
