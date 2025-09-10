@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Chat Log</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top;}
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .reply-form { display: flex; }
+        .reply-form input[type="text"] { flex-grow: 1; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>📖 บันทึกข้อความจาก LINE OA</h1>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:150px;">เวลาที่ส่ง</th>
+                <th style="width:250px;">User ID</th>
+                <th>ข้อความ</th>
+                <th style="width:250px;">ตอบกลับ</th> </tr>
+        </thead>
+        <tbody>
+            {% for message in messages %}
+            <tr>
+                <td>{{ message['timestamp'] }}</td>
+                <td>{{ message['user_id'] }}</td>
+                <td>{{ message['message_text'] }}</td>
+                <td>
+                    <form class="reply-form" action="/send_reply" method="post">
+                        <input type="hidden" name="user_id" value="{{ message['user_id'] }}">
+                        <input type="text" name="reply_message" placeholder="พิมพ์ข้อความตอบกลับ..." required>
+                        <button type="submit">ส่ง</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center;">ยังไม่มีข้อความในระบบ</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
