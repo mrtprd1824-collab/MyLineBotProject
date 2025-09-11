@@ -16,13 +16,18 @@ class RegistrationForm(FlaskForm):
     password2 = PasswordField(
         'Repeat Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Register')
-
     def validate_username(self, username):
         user = models.User.query.filter_by(username=username.data).first()
         if user is not None:
             raise ValidationError('Please use a different username.')
-
     def validate_email(self, email):
         user = models.User.query.filter_by(email=email.data).first()
         if user is not None:
             raise ValidationError('Please use a different email address.')
+
+class LineAccountForm(FlaskForm):
+    account_name = StringField('ชื่อบัญชี (สำหรับเรียกในระบบ)', validators=[DataRequired()])
+    channel_id = StringField('Channel ID (Destination)', validators=[DataRequired()])
+    channel_secret = StringField('Channel Secret', validators=[DataRequired()])
+    channel_access_token = StringField('Channel Access Token', validators=[DataRequired()])
+    submit = SubmitField('บันทึก')
