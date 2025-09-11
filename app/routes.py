@@ -5,7 +5,7 @@ from app.forms import LoginForm, RegistrationForm, LineAccountForm
 from flask_login import current_user, login_user, logout_user, login_required
 
 # --- ส่วน import ของ LINE ---
-from linebot.v3 import WebhookHandler
+from linebot.v3 import WebhookParser # <-- เปลี่ยนมาใช้ Parser โดยตรง
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, TextMessage, PushMessageRequest
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -13,6 +13,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 # สร้าง Blueprint ชื่อ 'main'
 bp = Blueprint('main', __name__)
 
+# --- Routes (ส่วนนี้ไม่มีการเปลี่ยนแปลง) ---
 
 @bp.route('/')
 @bp.route('/index')
@@ -21,8 +22,6 @@ def index():
         return redirect(url_for('main.chat_page'))
     return redirect(url_for('main.login'))
 
-# (โค้ดส่วนอื่นๆ ที่ถูกต้องแล้ว จะย่อไว้นะครับ)
-# ... login, chat_page, APIs, logout, manage_users, manage_line_accounts ...
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -51,7 +50,6 @@ def chat_page():
     ).group_by(models.Message.user_id).order_by(func.max(models.Message.timestamp).desc()).all()
     
     return render_template('chat.html', conversations=conversations, title="ห้องแชททั้งหมด")
-
 
 @bp.route('/api/conversations')
 @login_required
@@ -107,67 +105,93 @@ def manage_line_accounts():
     all_accounts = models.LineAccount.query.all()
     return render_template('manage_line_accounts.html', title='Manage LINE OAs', form=form, accounts=all_accounts)
 
-# --- Webhook ---
-
-# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-# --- ส่วนที่แก้ไข ---
+# --- Webhook (เวอร์ชันแก้ไขใหม่ทั้งหมด) ---
 @bp.route("/callback", methods=['POST'])
 def callback():
-    # เราจะยังไม่ทำให้ Webhook รองรับหลายบัญชีในขั้นตอนนี้
-    # แต่จะดึงค่า Secret จาก config ไปก่อน
-    handler = WebhookHandler(current_app.config['LINE_CHANNEL_SECRET'])
-
-    @handler.add(MessageEvent, message=TextMessageContent)
-    def handle_message(event):
-        # ใช้ current_app.app_context() แทน app.app_context()
-        with current_app.app_context():
-            configuration = Configuration(access_token=current_app.config['LINE_CHANNEL_ACCESS_TOKEN'])
-            user_id = event.source.user_id
-            message_text = event.message.text
-            
-            profile = models.LineProfile.query.get(user_id)
-            if not profile:
-                try:
-                    with ApiClient(configuration) as api_client:
-                        line_bot_api = MessagingApi(api_client)
-                        user_profile = line_bot_api.get_profile(user_id)
-                        new_profile = models.LineProfile(user_id=user_profile.user_id, display_name=user_profile.display_name, picture_url=user_profile.picture_url)
-                        db.session.add(new_profile)
-                except Exception as e:
-                    print(f"Error getting profile: {e}")
-            
-            new_message = models.Message(user_id=user_id, message_text=message_text)
-            db.session.add(new_message)
-            db.session.commit()
-            print(f"Saved message from {user_id}")
-
     signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
+    body_json = request.get_json()
+    
     try:
-        handler.handle(body, signature)
+        destination_id = body_json.get('destination')
+        if not destination_id: return 'OK'
+
+        line_account = models.LineAccount.query.filter_by(channel_id=destination_id).first()
+        if not line_account:
+            print(f"Unknown destination: {destination_id}")
+            return 'OK'
+
+        parser = WebhookParser(line_account.channel_secret)
+        events = parser.parse(body, signature)
+
+        for event in events:
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+                handle_message_logic(event, line_account)
+
     except InvalidSignatureError:
+        print("Invalid signature. Please check your channel secret.")
         abort(400)
+    except Exception as e:
+        print(f"An error occurred in callback: {e}")
+        abort(500)
+            
     return 'OK'
+
+def handle_message_logic(event, line_account):
+    user_id = event.source.user_id
+    message_text = event.message.text
+    
+    profile = models.LineProfile.query.get(user_id)
+    if not profile:
+        try:
+            configuration = Configuration(access_token=line_account.channel_access_token)
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                user_profile = line_bot_api.get_profile(user_id)
+                new_profile = models.LineProfile(user_id=user_profile.user_id, display_name=user_profile.display_name, picture_url=user_profile.picture_url)
+                db.session.add(new_profile)
+        except Exception as e:
+            print(f"Error getting profile for {user_id}: {e}")
+    
+    new_message = models.Message(
+        user_id=user_id, 
+        message_text=message_text,
+        line_account_id=line_account.id
+    )
+    db.session.add(new_message)
+    db.session.commit()
+    print(f"SUCCESS: Saved message from {user_id} for Line Account: {line_account.account_name}")
+
 
 @bp.route('/send_reply', methods=['POST'])
 @login_required
 def send_reply():
-    # ... (ส่วนนี้เหมือนเดิม) ...
     user_id = request.form.get('user_id')
     reply_message_text = request.form.get('reply_message')
     if not user_id or not reply_message_text:
         return jsonify({'status': 'error', 'message': 'Missing data'}), 400
+
     try:
-        configuration = Configuration(access_token=current_app.config['LINE_CHANNEL_ACCESS_TOKEN'])
+        last_msg = models.Message.query.filter_by(user_id=user_id).order_by(models.Message.timestamp.desc()).first()
+        if not last_msg or not last_msg.line_account:
+            raise Exception("Cannot find which LINE OA to reply with.")
+
+        line_account = last_msg.line_account
+        configuration = Configuration(access_token=line_account.channel_access_token)
+        
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             line_bot_api.push_message(PushMessageRequest(to=user_id, messages=[TextMessage(text=reply_message_text)]))
+
         admin_message_text = f"[Admin]: {reply_message_text}"
-        new_admin_message = models.Message(user_id=user_id, message_text=admin_message_text)
+        new_admin_message = models.Message(
+            user_id=user_id, 
+            message_text=admin_message_text,
+            line_account_id=line_account.id
+        )
         db.session.add(new_admin_message)
         db.session.commit()
         return jsonify({'status': 'success'})
     except Exception as e:
         print(f"Error sending message: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
