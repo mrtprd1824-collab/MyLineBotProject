@@ -53,16 +53,16 @@ class Group(db.Model):
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.Text, nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # ✅ เพิ่ม index
     message_type = db.Column(db.String(20), nullable=False, default="text")
     media_url = db.Column(db.String(255), nullable=True)
     sticker_id = db.Column(db.String(50), nullable=True)
     package_id = db.Column(db.String(50), nullable=True)
     is_read = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('0'))
 
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    line_account_id = db.Column(db.Integer, db.ForeignKey("line_account.id"), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)          # ✅ เพิ่ม index
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)    # ✅ เพิ่ม index
+    line_account_id = db.Column(db.Integer, db.ForeignKey("line_account.id"), nullable=True, index=True)  # ✅ เพิ่ม index
 
     author = db.relationship("User", foreign_keys=[user_id], backref=db.backref('sent_messages', lazy='joined'))
     recipient = db.relationship("User", foreign_keys=[recipient_id], backref=db.backref('received_messages', lazy='joined'))
@@ -70,6 +70,7 @@ class Message(db.Model):
 
     def __repr__(self):
         return f"<Message {self.id} {self.message_type}>"
+
 
 class QuickReply(db.Model):
     id = db.Column(db.Integer, primary_key=True)
