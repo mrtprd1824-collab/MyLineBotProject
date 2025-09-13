@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body_content %}
+<div class="container mt-4">
+    <h2>Select Group</h2>
+    <ul class="list-group">
+        {% for g in groups %}
+        <li class="list-group-item">
+            <a href="{{ url_for('main.chat', group_id=g.id) }}">{{ g.name }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

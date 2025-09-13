@@ -1,14 +1,18 @@
-from app import create_app, db
-from app.models import User, Message, LineProfile, LineAccount
+from app import create_app, db, socketio
+from app.models import User, Message, LineAccount, Group, QuickReply
 
 app = create_app()
 
 @app.shell_context_processor
 def make_shell_context():
     return {
-        'db': db, 
-        'User': User, 
-        'Message': Message, 
-        'LineProfile': LineProfile, 
-        'LineAccount': LineAccount
+        "db": db,
+        "User": User,
+        "Message": Message,
+        "LineAccount": LineAccount,
+        "Group": Group,
+        "QuickReply": QuickReply,
     }
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)

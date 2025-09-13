@@ -1,190 +1,642 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <h3>ห้องแชททั้งหมด</h3>
-        <div id="conversation-list" class="list-group mt-3" style="height: 70vh; overflow-y: auto;">
-            {% if conversations %}
-                {% for conv in conversations %}
-                    <a href="#{{ conv.user_id }}" class="list-group-item list-group-item-action conversation-link" data-userid="{{ conv.user_id }}">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">
-                                <img src="{{ conv.picture_url or 'https://via.placeholder.com/50' }}" alt=" " class="rounded-circle me-2" style="width: 24px; height: 24px;">
-                                {{ conv.display_name or conv.user_id }}
-                            </h6>
-                            <small>{{ conv.last_timestamp.strftime('%H:%M') }}</small>
-                        </div>
-                        <p class="mb-1 small text-muted">{{ conv.last_message }}</p>
-                    </a>
-                {% endfor %}
+{% block styles %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  /* Styles specific to chat page */
+  .chat-page-container {
+    flex-grow: 1; /* Take up remaining vertical space */
+    display: flex;
+    overflow: hidden; /* Prevent scrolling on the body */
+  }
+  .sidebar-left, .sidebar-right {
+    flex-shrink: 0;
+    background-color: #f8f9fa;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .sidebar-left { width: 320px; }
+  .sidebar-right { width: 300px; }
+  .chat-main {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+  }
+  .chat-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+  }
+  .chat-input-area {
+    flex-shrink: 0;
+    position: relative;
+  }
+  .msg-left, .msg-right { display: flex; flex-direction: column; max-width: 75%; }
+  .msg-left { align-self: flex-start; text-align: left; }
+  .msg-right { align-self: flex-end; text-align: right; }
+  .bubble-left, .bubble-right { border-radius: 15px; padding: 10px 14px; display: inline-block; text-align: left; word-wrap: break-word; }
+  .bubble-left { background-color: #f1f1f1; }
+  .bubble-right { background-color: #e6ffde; color: #303030; }
+  .msg-meta { font-size: 0.75rem; color: #6c757d; margin-top: 2px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+  .avatar-sidebar { width: 45px; height: 45px; }
+  .avatar-header { width: 35px; height: 35px; }
+  .avatar-main { width: 80px; height: 80px; }
+  .avatar-placeholder { background-color: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #adb5bd; }
+  .list-group-item { border: none; padding: 0.75rem 1rem; }
+  .user-list-info { flex-grow: 1; min-width: 0; }
+  .user-list-header { display: flex; justify-content: space-between; align-items: baseline; }
+  .user-list-body { display: flex; justify-content: space-between; align-items: center; }
+  .chat-image { max-width: 200px; border-radius: 15px; cursor: pointer; }
+  .chat-sticker { width: 120px; height: 120px; }
+  #modalImage { max-width: 100%; height: auto; }
+  #qr-suggestions { position: absolute; bottom: 100%; left: 0; right: 0; background-color: white; border: 1px solid #ddd; border-bottom: none; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; }
+  .suggestion-item { padding: 10px; cursor: pointer; }
+  .suggestion-item:hover { background-color: #f0f0f0; }
+  .suggestion-item .name { font-weight: bold; }
+  .suggestion-item .text { color: #555; font-size: 0.9em; }
+  .sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; }
+  .sticker-preview { width: 100%; cursor: pointer; transition: transform 0.2s; }
+  .sticker-preview:hover { transform: scale(1.1); }
+  #stickerModal .modal-body { padding: 0; }
+  .nav-tabs .nav-link { cursor: pointer; }
+  #imageModal .modal-body { text-align: center; }
+  .edit-btn { cursor: pointer; color: #0d6efd; margin-left: 8px; }
+</style>
+
+<!-- Edit Username Modal -->
+<div class="modal fade" id="editUsernameModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขชื่อผู้ใช้</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-username-input" class="form-control" value="{{ selected_user.username }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-username-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Edit Phone Modal -->
+<div class="modal fade" id="editPhoneModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขเบอร์โทร</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-phone-input" class="form-control" value="{{ selected_user.phone or '' }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-phone-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}
+
+{% block body_content %}
+<div class="chat-page-container">
+  <!-- LEFT: Users -->
+  <div class="sidebar-left border-end" id="user-list-container">
+    <div class="p-3 border-bottom bg-light">
+      <h5 class="mb-0">Users</h5>
+    </div>
+    <div class="list-group list-group-flush flex-grow-1 overflow-auto">
+      {% for data in users_data %}
+        <a href="{{ url_for('main.chat_all', user_id=data.user_info.id) }}"
+           class="list-group-item list-group-item-action {% if selected_user and selected_user.id == data.user_info.id %}active{% endif %}" style="{% if data.unread_count > 0 %}background-color:#e6ffe6 !important;{% endif %}" id="user-list-{{ data.user_info.id }}">
+          <div class="d-flex w-100 align-items-center">
+            {% if data.user_info.picture_url %}
+              <img src="{{ data.user_info.picture_url }}" alt="{{ data.user_info.username }}" class="avatar avatar-sidebar">
             {% else %}
-                <div class="list-group-item">ยังไม่มีห้องแชท</div>
+              <div class="avatar avatar-sidebar avatar-placeholder"><i class="bi bi-person-fill"></i></div>
             {% endif %}
-        </div>
+            <div class="user-list-info ms-2">
+              <div class="user-list-header">
+                <div class="fw-semibold text-truncate" id="user-list-name-{{ data.user_info.id }}">{{ data.user_info.username }}</div>
+                {% if data.last_message %}<div class="small text-muted flex-shrink-0 ps-2">{{ data.last_message.timestamp.strftime('%H:%M') }}</div>{% endif %}
+              </div>
+              <div class="user-list-body">
+                <div class="small text-muted text-truncate">
+                  {% if data.last_message %}
+                    {% if data.last_message.message_type == 'text' %}
+                      {{ data.last_message.text }}
+                    {% elif data.last_message.message_type == 'image' %}
+                      <i class="bi bi-image-fill"></i> รูปภาพ
+                    {% elif data.last_message.message_type == 'sticker' %}
+                      <i class="bi bi-sticky-fill"></i> สติ๊กเกอร์
+                    {% endif %}
+                  {% else %}
+                    <i>No messages yet</i>
+                  {% endif %}
+                </div>
+                {% if data.unread_count > 0 %}<span class="badge bg-danger rounded-pill ms-auto" id="unread-count-{{ data.user_info.id }}">{{ data.unread_count }}</span>{% endif %}
+              </div>
+            </div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- CENTER: Chat -->
+  <div class="chat-main">
+    {% if selected_user %}
+    <div class="border-bottom p-2 d-flex align-items-center bg-white shadow-sm">
+      {% if selected_user.picture_url %}
+        <img src="{{ selected_user.picture_url }}" alt="{{ selected_user.username }}" class="avatar avatar-header me-2">
+      {% else %}
+        <div class="avatar avatar-header avatar-placeholder me-2"><i class="bi bi-person"></i></div>
+      {% endif %}
+      <span id="chat-username">{{ selected_user.username }}</span>
     </div>
 
-    <div class="col-md-8">
-        <h3 id="chat-header">เลือกห้องแชทเพื่อเริ่ม</h3>
-        <div id="message-window" class="chat-history mt-3" style="height: 60vh; overflow-y: auto; border: 1px solid #ccc; padding: 1em; background-color: #f9f9f9;">
-            <p class="text-muted text-center">กรุณาเลือกห้องแชทจากทางซ้าย</p>
-        </div>
-        
-        <div id="reply-box" class="reply-box mt-3" style="display: none;">
-            <form id="reply-form">
-                <input type="hidden" id="reply-user-id" name="user_id" value="">
-                <div class="input-group">
-                    <input type="text" id="reply-message-text" name="reply_message" class="form-control" placeholder="พิมพ์ข้อความตอบกลับ..." required>
-                    <button class="btn btn-primary" type="submit">ส่ง</button>
+    <div class="bg-light chat-scroll d-flex flex-column" id="chat-window">
+      {% for msg in messages %}
+      <div class="mb-3 d-flex flex-column {% if msg.user_id == current_user.id %}msg-right{% else %}msg-left{% endif %}">
+        {% if msg.message_type == 'text' %}
+          <div class="{% if msg.user_id == current_user.id %}bubble-right{% else %}bubble-left{% endif %}">
+            {{ msg.text | safe }}
+          </div>
+        {% elif msg.message_type == 'image' %}
+          <img src="{{ url_for('static', filename='uploads/' + msg.media_url) }}" class="chat-image" data-bs-toggle="modal" data-bs-target="#imageModal" onclick="document.getElementById('modalImage').src = this.src">
+        {% elif msg.message_type == 'sticker' %}
+          <img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/{{ msg.sticker_id }}/android/sticker.png" class="chat-sticker">
+        {% elif msg.message_type == 'system' %}
+          <div class="bubble-left bg-warning text-dark" style="font-size:0.85em;">
+            {{ msg.text }}
+          </div>
+        {% endif %}
+        <div class="msg-meta">{{ msg.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="chat-input-area border-top p-2 bg-white">
+        <div id="qr-suggestions"></div>
+        <form method="POST" action="{{ url_for('main.chat_all', user_id=selected_user.id) }}" id="message-form">
+            <div class="d-flex align-items-center">
+                <label for="image-upload" class="btn btn-light me-2"><i class="bi bi-paperclip"></i></label>
+                <input type="file" id="image-upload" name="image" style="display: none;" accept="image/*">
+                
+                <button type="button" class="btn btn-light me-2" data-bs-toggle="modal" data-bs-target="#stickerModal"><i class="bi bi-sticky"></i></button>
+                
+                <input type="text" name="message" class="form-control" id="message-input" placeholder="พิมพ์ข้อความ..." autocomplete="off">
+                
+                <button class="btn btn-primary ms-2" type="submit" id="send-button"><i class="bi bi-send-fill"></i></button>
+            </div>
+        </form>
+    </div>
+
+    {% else %}
+    <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+      เลือกผู้ใช้ทางซ้ายเพื่อเริ่มสนทนา
+    </div>
+    
+    <p><strong>Phone:</strong> <span id="sidebar-phone">{{ selected_user.phone or '' }}</span>
+      <i class="bi bi-pencil-square edit-btn" id="edit-phone-btn" title="แก้ไขเบอร์โทร"></i>
+    </p>
+    <hr>
+    <h6>โน้ต</h6>
+    <textarea id="sidebar-note" class="form-control mb-2" rows="4">{{ selected_user.note or '' }}</textarea>
+    <button class="btn btn-primary btn-sm" id="save-note-btn">บันทึกโน้ต</button>
+
+    {% endif %}
+  </div>
+
+  <!-- RIGHT: User Info -->
+  <div class="sidebar-right border-start p-3 bg-light">
+    {% if selected_user %}
+    <div class="text-center mb-3">
+        {% if selected_user.picture_url %}
+            <img src="{{ selected_user.picture_url }}" alt="{{ selected_user.username }}" class="avatar avatar-main mb-2">
+        {% else %}
+            <div class="avatar avatar-main avatar-placeholder mb-2 mx-auto"><i class="bi bi-person-fill"></i></div>
+        {% endif %}
+        <h5 id="sidebar-username" class="mb-0 d-inline">{{ selected_user.username }}</h5>
+        <i class="bi bi-pencil-square edit-btn" id="edit-username-btn" title="แก้ไขชื่อ"></i>
+        <small class="text-muted">{{ selected_user.role }}</small>
+    </div>
+    <hr>
+    <h6>ข้อมูลผู้ใช้</h6>
+    <p><strong>Line ID:</strong><br><small class="text-muted">{{ selected_user.line_user_id }}</small></p>
+    
+    <p><strong>Phone:</strong> <span id="sidebar-phone">{{ selected_user.phone or '' }}</span>
+      <i class="bi bi-pencil-square edit-btn" id="edit-phone-btn" title="แก้ไขเบอร์โทร"></i>
+    </p>
+    <hr>
+    <h6>โน้ต</h6>
+    <textarea id="sidebar-note" class="form-control mb-2" rows="4">{{ selected_user.note or '' }}</textarea>
+    <button class="btn btn-primary btn-sm" id="save-note-btn">บันทึกโน้ต</button>
+
+    {% endif %}
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-body">
+        <img src="" id="modalImage" class="img-fluid">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sticker Modal -->
+<div class="modal fade" id="stickerModal" tabindex="-1" aria-labelledby="stickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="stickerModalLabel">Send Sticker</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs" id="stickerTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="set1-tab" data-bs-toggle="tab" data-bs-target="#set1" type="button" role="tab" aria-controls="set1" aria-selected="true">Set 1 (Basic)</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="set2-tab" data-bs-toggle="tab" data-bs-target="#set2" type="button" role="tab" aria-controls="set2" aria-selected="false">Set 2 (Basic)</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="stickerTabContent">
+                    <div class="tab-pane fade show active" id="set1" role="tabpanel" aria-labelledby="set1-tab">
+                        <div class="sticker-grid" id="sticker-grid-1"></div>
+                    </div>
+                    <div class="tab-pane fade" id="set2" role="tabpanel" aria-labelledby="set2-tab">
+                        <div class="sticker-grid" id="sticker-grid-2"></div>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Image Preview Modal -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-labelledby="imagePreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="imagePreviewModalLabel">ยืนยันการส่งรูปภาพ</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img src="" id="imagePreview" class="img-fluid" style="max-height: 400px; border-radius: 10px;">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="confirm-image-send">ส่งรูปภาพ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Edit Username Modal -->
+<div class="modal fade" id="editUsernameModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขชื่อผู้ใช้</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-username-input" class="form-control" value="{{ selected_user.username }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-username-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Edit Phone Modal -->
+<div class="modal fade" id="editPhoneModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขเบอร์โทร</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-phone-input" class="form-control" value="{{ selected_user.phone or '' }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-phone-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-    let currentUserId = null;
-
-    function createConversationHTML(conv) {
-        const userId = conv.user_id;
-        const displayName = conv.display_name || userId;
-        const pictureUrl = conv.picture_url || 'https://via.placeholder.com/50';
-        const lastMessage = conv.last_message || '';
-        const lastTimestamp = conv.last_timestamp || '';
-
-        return `
-            <a href="#${userId}" class="list-group-item list-group-item-action conversation-link" data-userid="${userId}">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">
-                        <img src="${pictureUrl}" alt=" " class="rounded-circle me-2" style="width: 24px; height: 24px;">
-                        ${displayName}
-                    </h6>
-                    <small>${lastTimestamp}</small>
-                </div>
-                <p class="mb-1 small text-muted">${lastMessage}</p>
-            </a>
-        `;
-    }
-
-    function createMessageHTML(msg) {
-        const isAdmin = msg.message_text.startsWith('[Admin]:');
-        const alignClass = isAdmin ? 'text-end' : 'text-start';
-        const sender = isAdmin ? 'คุณ' : 'ลูกค้า';
-        const textClass = isAdmin ? 'text-success' : '';
-        const cleanText = msg.message_text.replace('[Admin]:', '').trim();
-
-        return `
-            <div class="mb-3 ${alignClass}">
-                <p class="mb-0">
-                    <strong class="${textClass}">${sender}:</strong>
-                    ${cleanText}
-                    <br>
-                    <small class="text-muted">${msg.timestamp}</small>
-                </p>
-            </div>
-        `;
-    }
-
-    async function updateConversationList() {
-        try {
-            const response = await fetch('/api/conversations');
-            if (!response.ok) throw new Error('Network response was not ok');
-            const conversations = await response.json();
-            const listElement = document.getElementById('conversation-list');
-            
-            if (conversations.length > 0) {
-                listElement.innerHTML = conversations.map(createConversationHTML).join('');
+document.addEventListener("DOMContentLoaded", function() {
+    const selectedUserId = {{ selected_user.id|tojson if selected_user else 'null' }};
+    const currentUserId = {{ current_user.id|tojson }};
+    const lineAccountContextId = {{ line_account_context_id|tojson if line_account_context_id else 'null' }};
+    const socket = io();
+    socket.on('connect', () => { console.log('Socket.IO Connected!'); });
+    socket.on('disconnect', () => { console.log('Socket.IO Disconnected!'); });
+    socket.on('update_chat', function(data) {
+        if (data.recipient_id !== currentUserId) { return; }
+        const userListItem = document.getElementById(`user-list-${data.user_id}`);
+        const userListContainer = document.querySelector("#user-list-container .list-group");
+        if (userListItem) { userListItem.remove(); }
+        userListContainer.insertAdjacentHTML('afterbegin', data.user_list_item_html);
+        if (selectedUserId && selectedUserId === data.user_id) {
+            const chatWindow = document.getElementById('chat-window');
+            chatWindow.insertAdjacentHTML('beforeend', data.message_bubble_html);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+    });
+    const chatWindow = document.getElementById('chat-window');
+    if (chatWindow) { chatWindow.scrollTop = chatWindow.scrollHeight; }
+    const messageInput = document.getElementById('message-input');
+    const suggestionsBox = document.getElementById('qr-suggestions');
+    if (messageInput) {
+        messageInput.addEventListener('input', function() {
+            const query = this.value;
+            if (query.length > 0) {
+                const lineAccountIdToSend = lineAccountContextId ? lineAccountContextId : '';
+                fetch(`/api/quick_replies?q=${encodeURIComponent(query)}&line_account_id=${lineAccountIdToSend}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        suggestionsBox.innerHTML = '';
+                        if (data.length > 0) {
+                            data.forEach(qr => {
+                                const item = document.createElement('div');
+                                item.classList.add('suggestion-item');
+                                item.innerHTML = `<div class="name">${qr.name}</div><div class="text">${qr.text}</div>`;
+                                item.onclick = () => {
+                                    messageInput.value = qr.text;
+                                    suggestionsBox.style.display = 'none';
+                                    messageInput.focus();
+                                };
+                                suggestionsBox.appendChild(item);
+                            });
+                            suggestionsBox.style.display = 'block';
+                        } else {
+                            suggestionsBox.style.display = 'none';
+                        }
+                    }).catch(error => {
+                        console.error('Error fetching quick replies:', error);
+                        suggestionsBox.style.display = 'none';
+                    });
             } else {
-                listElement.innerHTML = '<div class="list-group-item">ยังไม่มีห้องแชท</div>';
+                suggestionsBox.style.display = 'none';
             }
-            
-            addClickListenersToConversations();
-        } catch (error) {
-            console.error("Failed to update conversation list:", error);
+        });
+    }
+    document.addEventListener('click', function(event) {
+        if (suggestionsBox && !suggestionsBox.contains(event.target) && event.target !== messageInput) {
+            suggestionsBox.style.display = 'none';
+        }
+    });
+    const imageUploadInput = document.getElementById('image-upload');
+    const imagePreviewModalEl = document.getElementById('imagePreviewModal');
+    const imagePreviewEl = document.getElementById('imagePreview');
+    const confirmSendBtn = document.getElementById('confirm-image-send');
+    let selectedFile = null;
+    let previewUrl = null;
+    const imagePreviewModal = new bootstrap.Modal(imagePreviewModalEl);
+    if (imageUploadInput) {
+        imageUploadInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                selectedFile = this.files[0];
+                previewUrl = URL.createObjectURL(selectedFile);
+                imagePreviewEl.src = previewUrl;
+                imagePreviewModal.show();
+                this.value = '';
+            }
+        });
+    }
+    confirmSendBtn.addEventListener('click', function() {
+        if (!selectedFile) return;
+        imagePreviewModal.hide();
+        const fileToSend = selectedFile;
+        selectedFile = null;
+        const formData = new FormData();
+        formData.append('image', fileToSend);
+        messageInput.disabled = true;
+        messageInput.value = 'Uploading image...';
+        fetch("{{ url_for('main.upload_image') }}", { method: 'POST', body: formData })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error) });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                const messageForm = document.getElementById('message-form');
+                messageInput.value = `[[IMAGE:${data.image_url}]]`;
+                messageInput.disabled = false;
+                messageForm.submit();
+            } else {
+                alert('Error uploading image: ' + data.error);
+                messageInput.value = '';
+                messageInput.disabled = false;
+            }
+        }).catch(error => {
+            console.error('Upload error:', error);
+            alert('Upload Error: ' + error.message);
+            messageInput.value = '';
+            messageInput.disabled = false;
+        });
+    });
+    imagePreviewModalEl.addEventListener('hidden.bs.modal', function () {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = null;
+        }
+        if (selectedFile) {
+            selectedFile = null;
+        }
+    });
+    const stickerModalEl = document.getElementById('stickerModal');
+    function sendSticker(packageId, stickerId) {
+        if (packageId && stickerId) {
+            const messageInput = document.getElementById('message-input');
+            messageInput.value = `[[STICKER:${packageId},${stickerId}]]`;
+            const stickerModal = bootstrap.Modal.getInstance(stickerModalEl);
+            if (stickerModal) { stickerModal.hide(); }
+            document.getElementById('send-button').click();
         }
     }
-
-    async function loadMessages(userId, autoScroll = false) {
-        currentUserId = userId;
-        const messageWindow = document.getElementById('message-window');
-        
-        if (autoScroll) {
-             messageWindow.innerHTML = '<p class="text-center">กำลังโหลด...</p>';
-        }
-        
-        try {
-            const response = await fetch(`/api/messages/${userId}`);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const messages = await response.json();
-            
-            messageWindow.innerHTML = messages.map(createMessageHTML).join('');
-
-            if (autoScroll) {
-                messageWindow.scrollTop = messageWindow.scrollHeight;
-            }
-
-            document.getElementById('chat-header').innerText = `ประวัติการแชทกับ: ${userId}`;
-            document.getElementById('reply-user-id').value = userId;
-            document.getElementById('reply-box').style.display = 'block';
-        } catch (error) {
-            console.error("Failed to load messages:", error);
-            messageWindow.innerHTML = '<p class="text-center text-danger">ไม่สามารถโหลดข้อความได้</p>';
+    function populateStickerGrid(packageId, gridId, stickerIdStart, stickerIdEnd) {
+        const grid = document.getElementById(gridId);
+        if (!grid) return;
+        for (let i = stickerIdStart; i <= stickerIdEnd; i++) {
+            const stickerImg = document.createElement('img');
+            stickerImg.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${i}/android/sticker.png`;
+            stickerImg.classList.add('sticker-preview');
+            stickerImg.dataset.packageId = packageId;
+            stickerImg.dataset.stickerId = i;
+            stickerImg.onclick = () => sendSticker(packageId, i);
+            grid.appendChild(stickerImg);
         }
     }
-
-    function addClickListenersToConversations() {
-        document.querySelectorAll('.conversation-link').forEach(link => {
-            link.addEventListener('click', function(event) {
-                event.preventDefault();
-                document.querySelectorAll('.conversation-link').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
-                const userId = this.dataset.userid;
-                loadMessages(userId, true);
-            });
+    if (stickerModalEl) {
+        stickerModalEl.addEventListener('show.bs.modal', function () {
+            if (document.getElementById('sticker-grid-1').children.length === 0) {
+                populateStickerGrid(1, 'sticker-grid-1', 1, 21);
+            }
+            if (document.getElementById('sticker-grid-2').children.length === 0) {
+                 populateStickerGrid(2, 'sticker-grid-2', 22, 41);
+            }
         });
     }
 
-    async function handleReplySubmit(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
-        const replyInput = document.getElementById('reply-message-text');
+  // ===== Edit Username Modal =====
+  const editBtn = document.getElementById('edit-username-btn');
+  const editModal = new bootstrap.Modal(document.getElementById('editUsernameModal'));
+  const inputEl = document.getElementById('edit-username-input');
+  const saveBtn = document.getElementById('save-username-btn');
 
-        try {
-            const response = await fetch('/send_reply', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                replyInput.value = '';
-                await loadMessages(currentUserId, true);
-                await updateConversationList();
-            } else {
-                alert('เกิดข้อผิดพลาดในการส่งข้อความ');
-            }
-        } catch(error) {
-             console.error("Failed to send reply:", error);
-             alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        addClickListenersToConversations();
-        updateConversationList(); // โหลดครั้งแรก
-        setInterval(updateConversationList, 10000); // อัปเดตรายชื่อทุก 10 วิ
-
-        setInterval(() => {
-            if (currentUserId) {
-                const messageWindow = document.getElementById('message-window');
-                const isScrolledToBottom = messageWindow.scrollHeight - messageWindow.clientHeight <= messageWindow.scrollTop + 50;
-                if (isScrolledToBottom) {
-                    loadMessages(currentUserId, true);
-                }
-            }
-        }, 5000);
-
-        document.getElementById('reply-form').addEventListener('submit', handleReplySubmit);
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      inputEl.value = document.getElementById('chat-username').textContent.trim();
+      editModal.show();
     });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const newName = inputEl.value.trim();
+      if (!newName) return;
+      const userId = {{ selected_user.id|tojson if selected_user else 'null' }};
+      fetch(`/edit_username/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: newName })
+      }).then(res => res.json()).then(data => {
+        if (data.success) {
+          document.getElementById('chat-username').textContent = data.username;
+          document.getElementById('sidebar-username').textContent = data.username;
+          const leftName = document.getElementById(`user-list-name-${userId}`);
+          if (leftName) leftName.textContent = data.username;
+          editModal.hide();
+        } else {
+          alert(data.error || 'แก้ไขชื่อไม่สำเร็จ');
+        }
+      });
+    });
+  }
+
+
+  // ===== Edit Phone =====
+  const phoneBtn = document.getElementById('edit-phone-btn');
+  const phoneModalEl = document.getElementById('editPhoneModal');
+  const phoneModal = phoneModalEl ? new bootstrap.Modal(phoneModalEl) : null;
+  const phoneInput = document.getElementById('edit-phone-input');
+  const savePhoneBtn = document.getElementById('save-phone-btn');
+  if (phoneBtn && phoneModal && phoneInput && savePhoneBtn) {
+    phoneBtn.addEventListener('click', () => { phoneModal.show(); });
+    savePhoneBtn.addEventListener('click', () => {
+      const newPhone = phoneInput.value.trim();
+      const userId = {{ selected_user.id|tojson if selected_user else 'null' }};
+      fetch(`/edit_phone/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: newPhone })
+      }).then(res => res.json()).then(data => {
+        if (data.success) {
+          document.getElementById('sidebar-phone').textContent = data.phone;
+          phoneModal.hide();
+        } else {
+          alert(data.error || 'บันทึกเบอร์โทรไม่สำเร็จ');
+        }
+      });
+    });
+  }
+
+  // ===== Edit Note =====
+  const noteTextarea = document.getElementById('sidebar-note');
+  const saveNoteBtn = document.getElementById('save-note-btn');
+  if (noteTextarea && saveNoteBtn) {
+    saveNoteBtn.addEventListener('click', () => {
+      const newNote = noteTextarea.value.trim();
+      const userId = {{ selected_user.id|tojson if selected_user else 'null' }};
+      fetch(`/edit_note/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: newNote })
+      }).then(res => res.json()).then(data => {
+        if (!data.success) {
+          alert(data.error || 'บันทึกโน้ตไม่สำเร็จ');
+        }
+      });
+    });
+  }
+
+});
 </script>
+
+<!-- Edit Username Modal -->
+<div class="modal fade" id="editUsernameModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขชื่อผู้ใช้</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-username-input" class="form-control" value="{{ selected_user.username }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-username-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Edit Phone Modal -->
+<div class="modal fade" id="editPhoneModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">แก้ไขเบอร์โทร</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-phone-input" class="form-control" value="{{ selected_user.phone or '' }}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="save-phone-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 {% endblock %}

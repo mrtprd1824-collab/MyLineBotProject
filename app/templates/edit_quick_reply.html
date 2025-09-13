@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block body_content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Edit Quick Reply</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('main.edit_quick_reply', qr_id=qr.id) }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name / Keyword</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ qr.name }}" required>
+                             <small class="form-text text-muted">A short keyword to find this reply.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="text" class="form-label">Full Reply Text</label>
+                            <textarea class="form-control" id="text" name="text" rows="4" required>{{ qr.text }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a href="{{ url_for('main.manage_quick_replies', scope=(qr.line_account_id or 'global')) }}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

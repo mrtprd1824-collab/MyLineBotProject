@@ -1,37 +1,196 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block content %}
-    <h1>จัดการผู้ใช้งาน (Admins)</h1>
-    <hr>
+{% block body_content %}
+<div class="container mt-5">
+    <h2 class="mb-4">Manage Users</h2>
 
-    <div class="row">
-        <div class="col-md-6">
-            <h3>สร้างผู้ใช้งานใหม่</h3>
-            <form action="{{ url_for('main.manage_users') }}" method="post">
-                {{ form.hidden_tag() }}
-                <div class="mb-3">
-                    {{ form.username.label(class="form-label") }}
-                    {{ form.username(class="form-control") }}
+    <!-- Add New User Form -->
+    <div class="card mb-4">
+        <div class="card-header">Add New User</div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('main.manage_users') }}">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="email" class="form-label">Email (Optional)</label>
+                        <input type="email" class="form-control" id="email" name="email">
+                    </div>
                 </div>
-                <div class="mb-3">
-                    {{ form.email.label(class="form-label") }}
-                    {{ form.email(class="form-control") }}
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <!-- Owner can create Admins and Staff -->
+                            {% if current_user.role == 'owner' %}
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                            <!-- Admins can only create Staff -->
+                            {% elif current_user.role == 'admin' %}
+                            <option value="staff">Staff</option>
+                            {% endif %}
+                        </select>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    {{ form.password.label(class="form-label") }}
-                    {{ form.password(class="form-control") }}
-                </div>
-                <div class="mb-3">
-                    {{ form.password2.label(class="form-label") }}
-                    {{ form.password2(class="form-control") }}
-                </div>
-                <div class="mb-3">
-                    {{ form.submit(class="btn btn-primary") }}
-                </div>
+                <button type="submit" class="btn btn-primary">Add User</button>
             </form>
         </div>
-        <div class="col-md-6">
-            <h3>รายชื่อผู้ใช้งานทั้งหมด</h3>
-            </div>
     </div>
+
+    <!-- User List Table -->
+    <div class="card">
+        <div class="card-header">User List</div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th style="width: 220px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email or 'N/A' }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if user.role == 'owner' %}bg-danger
+                                    {% elif user.role == 'admin' %}bg-success
+                                    {% else %}bg-secondary
+                                    {% endif %}">
+                                    {{ user.role|capitalize }}
+                                </span>
+                            </td>
+                            <td>
+                                <!-- Actions visible to Owner -->
+                                {% if current_user.role == 'owner' %}
+                                    {% if user.role != 'owner' %}
+                                        <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editRoleModal" data-user-id="{{ user.id }}" data-username="{{ user.username }}" data-current-role="{{ user.role }}">
+                                            Edit Role
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                                            Reset Password
+                                        </button>
+                                        <form action="{{ url_for('main.delete_user', user_id=user.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    {% endif %}
+                                <!-- Actions visible to Admin -->
+                                {% elif current_user.role == 'admin' %}
+                                    {% if user.role == 'staff' %}
+                                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                                            Reset Password
+                                        </button>
+                                        <form action="{{ url_for('main.delete_user', user_id=user.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Role Modal (Owner Only) -->
+<div class="modal fade" id="editRoleModal" tabindex="-1" aria-labelledby="editRoleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editRoleModalLabel">Edit Role for <strong id="editRoleUsername"></strong></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editRoleForm" method="POST" action="">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_role" class="form-label">New Role</label>
+            <select class="form-select" id="new_role" name="role" required>
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="resetPasswordModalLabel">Reset Password for <strong id="resetPasswordUsername"></strong></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="resetPasswordForm" method="POST" action="">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_password" class="form-label">New Password</label>
+            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="4">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // JS for Reset Password Modal
+    var resetPasswordModal = document.getElementById('resetPasswordModal');
+    if (resetPasswordModal) {
+        resetPasswordModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var userId = button.getAttribute('data-user-id');
+            var username = button.getAttribute('data-username');
+            var form = resetPasswordModal.querySelector('#resetPasswordForm');
+            resetPasswordModal.querySelector('#resetPasswordUsername').textContent = username;
+            form.action = '/reset_password/' + userId;
+        });
+    }
+
+    // JS for Edit Role Modal
+    var editRoleModal = document.getElementById('editRoleModal');
+    if (editRoleModal) {
+        editRoleModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var userId = button.getAttribute('data-user-id');
+            var username = button.getAttribute('data-username');
+            var currentRole = button.getAttribute('data-current-role');
+            var form = editRoleModal.querySelector('#editRoleForm');
+            editRoleModal.querySelector('#editRoleUsername').textContent = username;
+            editRoleModal.querySelector('#new_role').value = currentRole;
+            form.action = '/edit_user_role/' + userId;
+        });
+    }
+});
+</script>
 {% endblock %}
