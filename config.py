@@ -25,7 +25,7 @@ class Config:
 
     # REMEMBER to update the fallback URL when you restart ngrok.
     # --- VVVV ใส่ URL ใหม่ของคุณที่นี่ VVVV ---
-    BASE_URL = os.environ.get("BASE_URL", "https://cc46a88fee89.ngrok-free.app") 
+    BASE_URL = os.environ.get("BASE_URL", "https://winner-line-bot-app.onrender.com") 
 
 
 class DevelopmentConfig(Config):
