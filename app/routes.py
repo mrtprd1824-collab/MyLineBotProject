@@ -467,14 +467,24 @@ def chat_all(user_id=None):
 @bp.route("/upload_image", methods=["POST"])
 @login_required
 def upload_image():
-    if 'image' not in request.files: return jsonify({'error': 'No file part'}), 400
+    if 'image' not in request.files: 
+        return jsonify({'error': 'No file part'}), 400
+    
     file = request.files['image']
-    if file.filename == '': return jsonify({'error': 'No selected file'}), 400
+    if file.filename == '': 
+        return jsonify({'error': 'No selected file'}), 400
+    
     if file:
         filename = secure_filename(file.filename)
         filename = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
         filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+
+        os.makedirs(current_app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+        try:
+            file.save(filepath)
+        except Exception as e:
+            return jsonify({'error': f'Failed to save file: {str(e)}'}), 500
         image_path = url_for('static', filename=f'uploads/{filename}')
         return jsonify({'success': True, 'image_url': image_path})
 
