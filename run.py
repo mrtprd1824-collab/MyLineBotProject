@@ -1,4 +1,4 @@
-from app import create_app, db, socketio
+from app import create_app, socketio
 from app.models import User, Message, LineAccount, Group, QuickReply
 
 app = create_app()
@@ -14,5 +14,5 @@ def make_shell_context():
         "QuickReply": QuickReply,
     }
 
-if __name__ == '__main__':
-    socketio.run(app, debug=True)
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
