@@ -1,3 +1,4 @@
+from sqlalchemy.pool import NullPool
 import os
 
 # basedir ตอนนี้จะชี้ไปที่ root ของโปรเจกต์ (MyLineBotProject)
@@ -12,6 +13,11 @@ class Config:
     )
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # ✅ เพิ่มบรรทัดนี้เพื่อแก้ปัญหา eventlet + SQLite lock
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "poolclass": NullPool
+    }
     
     # แก้ไข UPLOAD_FOLDER ให้ชี้ไปที่โฟลเดอร์ uploads ที่ถูกต้อง
     UPLOAD_FOLDER = os.path.join(basedir, 'app', 'static', 'uploads')

@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from app import create_app, socketio
 from app.models import User, Message, LineAccount, Group, QuickReply
 
