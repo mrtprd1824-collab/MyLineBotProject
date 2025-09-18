@@ -3,7 +3,7 @@ self.addEventListener("push", function(event) {
   const options = {
     body: data.body,
     icon: "/icon.png",   // ใช้ไฟล์ icon.png ที่อยู่ root
-    data: { url: data.url || "https://winner-line-bot-app.onrender.com/chat_all" }
+    data: { url: data.url || "https://winner-line-bot-app.onrender.com/login" }
   };
   event.waitUntil(
     self.registration.showNotification(data.title, options)
