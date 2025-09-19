@@ -50,47 +50,38 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- โหลด OneSignal SDK -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
-    <script>
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        OneSignalDeferred.push(async function (OneSignal) {
-            await OneSignal.init({
-                appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea",
-            });
-        });
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function (OneSignal) {
+    await OneSignal.init({
+      appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea",
+    });
+  });
 
-        document.addEventListener("DOMContentLoaded", () => {
-            let asked = false; // ✅ popup แค่ครั้งเดียว
+  document.addEventListener("DOMContentLoaded", () => {
+    let asked = false;
 
-            document.addEventListener("click", async (e) => {
-                // ถ้า popup เคยถามแล้ว → ปล่อยให้ทำงานปกติ
-                if (asked) return;
-
-                // เช็คว่าคือปุ่ม submit หรือ link
-                const target = e.target.closest("button, input[type=submit], input[type=image], a");
-                if (!target) return;
-
-                e.preventDefault(); // กัน action ปกติไว้ก่อน
-                asked = true;       // แสดง popup ครั้งเดียวพอ
-
-                try {
-                    await OneSignal.Slidedown.promptPush();
-                } catch (err) {
-                    console.log("Prompt error:", err);
-                } finally {
-                    // ทำ action เดิมต่อ
-                    if (target.tagName.toLowerCase() === "a") {
-                        // ถ้าเป็นลิงก์
-                        window.location.href = target.href;
-                    } else {
-                        // ถ้าเป็นปุ่มในฟอร์ม
-                        const form = target.form;
-                        if (form) form.submit();
-                    }
-                }
-            });
-        });
-    </script>
+    // ดัก submit ของฟอร์ม login เดิม
+    const form = document.getElementById("login-form");
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        if (!asked) {
+          e.preventDefault(); // กันส่งฟอร์มทันที
+          asked = true;       // ให้ถามแค่ครั้งเดียว
+          try {
+            OneSignal.Slidedown.promptPush();
+          } catch (err) {
+            console.log("Prompt error:", err);
+          } finally {
+            // ส่งฟอร์มต่อหลัง popup
+            form.submit();
+          }
+        }
+      });
+    }
+  });
+</script>
 
 
 
