@@ -49,75 +49,76 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- โหลด OneSignal SDK -->
-<!-- โหลด OneSignal SDK (ถ้ายังไม่ได้โหลดที่อื่น) -->
+<!-- OneSignal v16 -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
+
+<!-- ปุ่มลอยสำหรับเปิดแจ้งเตือน (เริ่มซ่อนไว้) -->
+<button id="enable-push"
+        style="position:fixed; right:16px; bottom:16px; z-index:9999;
+               padding:10px 14px; border:0; border-radius:999px;
+               box-shadow:0 6px 20px rgba(0,0,0,.15);
+               background:#2f80ed; color:#fff; display:none;">
+  🔔 เปิดการแจ้งเตือน
+</button>
+
 <script>
-  // 1) Init OneSignal (ใช้ appId ของโดเมน onrender ของหน้านี้)
+  // --- ตั้งค่า OneSignal (ใช้ appId ของ 'โดเมนหน้านี้') ---
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function (OneSignal) {
-    await OneSignal.init({
-      appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea", // ← ใส่ appId ที่ผูกไว้กับ https://winner-line-bot-app.onrender.com
-    });
+    await OneSignal.init({ appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea" });
   });
 
-  // 2) ดัก "คลิกปุ่ม submit" ครั้งแรก แล้วค่อยส่งฟอร์มหลังผู้ใช้ตอบ
-  document.addEventListener("DOMContentLoaded", () => {
-    // หา form login อัตโนมัติ (ไม่ต้องแก้ HTML เดิม)
-    const form =
-      document.querySelector('form[action="/login"]') ||
-      document.getElementById("login-form") ||
-      document.querySelector("form");
+  // --- helper ตรวจ iOS และเปิดจากไอคอนหรือยัง ---
+  const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
-    if (!form) return;
+  // แบนเนอร์สั้น ๆ แนะนำ Add to Home Screen (แสดงครั้งเดียว)
+  function showA2HSHintOnce() {
+    if (!isIOS() || isStandalone()) return;
+    if (localStorage.getItem('a2hs_hint_shown')) return;
 
-    let asked = false; // ให้ถามแค่ครั้งเดียวในหน้านี้
+    const bar = document.createElement('div');
+    bar.style = "position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#111;color:#fff;padding:12px 14px;display:flex;gap:10px;align-items:center";
+    bar.innerHTML = `
+      <span style="font-size:20px">📲</span>
+      <span>บน iPhone ให้ไปที่ <b>Share</b> → <b>Add to Home Screen</b> แล้วเปิดจากไอคอน เพื่อเปิดแจ้งเตือนได้</span>
+      <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
+    `;
+    document.body.appendChild(bar);
+    document.getElementById('hint-close').onclick = () => {
+      localStorage.setItem('a2hs_hint_shown','1');
+      bar.remove();
+    };
+  }
 
-    // หา control ที่เป็น submit ทั้งหมด (รองรับปุ่มรูปภาพด้วย)
-    const submits = form.querySelectorAll(
-      'button[type="submit"], input[type="submit"], input[type="image"]'
-    );
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('enable-push');
 
-    // เรียก prompt "ใน click handler" เพื่อให้ iOS ยอม
-    submits.forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        (ev) => {
-          if (asked) return; // ครั้งต่อไปปล่อยให้ส่งปกติ
-          asked = true;
+    // แสดงปุ่มเมื่อยังไม่ได้อนุญาต (หรือยังไม่เคยถาม)
+    const perm = (typeof Notification !== "undefined" && Notification.permission) || "default";
+    if (perm !== 'granted') {
+      btn.style.display = 'inline-block';
+    }
 
-          // กันส่งฟอร์มทันที เพื่อให้ผู้ใช้ตอบ popup ก่อน
-          ev.preventDefault();
+    // iOS ที่ยังไม่ได้ Add to Home Screen → โชว์คำแนะนำหนึ่งครั้ง
+    showA2HSHintOnce();
 
-          // เรียก prompt แบบ synchronous (ไม่ await) — iOS ยอม
-          try {
-            OneSignal.Slidedown.promptPush();
-          } catch (e) {
-            // no-op
-          }
-
-          // รอให้ผู้ใช้ตอบ หรือครบเวลาสูงสุด แล้วค่อย submit ฟอร์ม
-          const startPerm =
-            (typeof Notification !== "undefined" && Notification.permission) ||
-            "default";
-          const start = Date.now();
-          const timeoutMs = 15000; // เผื่อสุดๆ 15 วินาที
-
-          const tick = setInterval(() => {
-            const perm =
-              (typeof Notification !== "undefined" && Notification.permission) ||
-              "default";
-
-            // ส่งต่อเมื่อสิทธิ์เปลี่ยน (default -> granted/denied) หรือหมดเวลา
-            if (perm !== startPerm || Date.now() - start > timeoutMs) {
-              clearInterval(tick);
-              form.submit(); // ส่งฟอร์มไป /login
-            }
-          }, 400);
-        },
-        { capture: true } // ให้มาก่อน handler อื่น ๆ
-      );
+    // คลิกปุ่มแล้วขอสิทธิ์ (ตามกฎ iOS ต้องเรียกใน click handler ตรง ๆ)
+    btn.addEventListener('click', () => {
+      if (isIOS() && !isStandalone()) {
+        // ยังไม่ติดตั้งเป็นไอคอน → แจ้งผู้ใช้
+        alert("บน iPhone กรุณา Add to Home Screen ก่อน (Share → Add to Home Screen) แล้วเปิดจากไอคอนเพื่อเปิดแจ้งเตือนได้");
+        return;
+      }
+      try { OneSignal.Slidedown.promptPush(); } catch(e) {}
     });
+
+    // ถ้าอนุญาตแล้วภายหลัง ค่อยซ่อนปุ่ม (โพลลิ่งแบบเบา ๆ)
+    const t = setInterval(() => {
+      const p = (typeof Notification !== "undefined" && Notification.permission) || "default";
+      if (p === 'granted') { btn.style.display = 'none'; clearInterval(t); }
+    }, 1000);
   });
 </script>
 
