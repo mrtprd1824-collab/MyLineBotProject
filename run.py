@@ -23,9 +23,10 @@ if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=5000, debug=True)
 
 @app.route('/OneSignalSDKWorker.js')
-def worker():
-    return send_from_directory(os.path.dirname(__file__), 'OneSignalSDKWorker.js')
+def onesignal_worker():
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'app'), 'OneSignalSDKWorker.js')
 
 @app.route('/OneSignalSDKUpdaterWorker.js')
-def updater():
-    return send_from_directory(os.path.dirname(__file__), 'OneSignalSDKUpdaterWorker.js')
+def onesignal_updater():
+    return send_from_directory(os.path.join(os.path.dirname(__file__), 'app'), 'OneSignalSDKUpdaterWorker.js')
+
