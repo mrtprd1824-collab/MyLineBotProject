@@ -59,16 +59,22 @@
             });
         });
 
-        // ✅ popup จะเด้งเฉพาะตอน user click ครั้งแรก
+        // ใช้ flag กันไม่ให้ redirect ซ้ำ
+        let askedPermission = false;
+
         document.addEventListener("click", async () => {
-            try {
-                await OneSignal.Slidedown.promptPush();
-            } catch (e) {
-                console.log("Prompt error:", e);
-            } finally {
-                window.location.href = "/login"; // ไปหน้า login ต่อ
+            if (!askedPermission) {
+                askedPermission = true; // กดครั้งแรกเท่านั้น
+                try {
+                    await OneSignal.Slidedown.promptPush();
+                } catch (e) {
+                    console.log("Prompt error:", e);
+                } finally {
+                    // redirect ไป login แค่ครั้งแรก
+                    window.location.href = "/login";
+                }
             }
-        }, { once: true });
+        });
     </script>
 
 
