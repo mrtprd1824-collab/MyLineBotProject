@@ -59,23 +59,39 @@
             });
         });
 
-        // ใช้ flag กันไม่ให้ redirect ซ้ำ
-        let askedPermission = false;
+        document.addEventListener("DOMContentLoaded", () => {
+            let asked = false; // ✅ popup แค่ครั้งเดียว
 
-        document.addEventListener("click", async () => {
-            if (!askedPermission) {
-                askedPermission = true; // กดครั้งแรกเท่านั้น
+            document.addEventListener("click", async (e) => {
+                // ถ้า popup เคยถามแล้ว → ปล่อยให้ทำงานปกติ
+                if (asked) return;
+
+                // เช็คว่าคือปุ่ม submit หรือ link
+                const target = e.target.closest("button, input[type=submit], input[type=image], a");
+                if (!target) return;
+
+                e.preventDefault(); // กัน action ปกติไว้ก่อน
+                asked = true;       // แสดง popup ครั้งเดียวพอ
+
                 try {
                     await OneSignal.Slidedown.promptPush();
-                } catch (e) {
-                    console.log("Prompt error:", e);
+                } catch (err) {
+                    console.log("Prompt error:", err);
                 } finally {
-                    // redirect ไป login แค่ครั้งแรก
-                    window.location.href = "/login";
+                    // ทำ action เดิมต่อ
+                    if (target.tagName.toLowerCase() === "a") {
+                        // ถ้าเป็นลิงก์
+                        window.location.href = target.href;
+                    } else {
+                        // ถ้าเป็นปุ่มในฟอร์ม
+                        const form = target.form;
+                        if (form) form.submit();
+                    }
                 }
-            }
+            });
         });
     </script>
+
 
 
 </body>
