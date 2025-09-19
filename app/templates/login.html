@@ -50,38 +50,77 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- โหลด OneSignal SDK -->
+<!-- โหลด OneSignal SDK (ถ้ายังไม่ได้โหลดที่อื่น) -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
 <script>
+  // 1) Init OneSignal (ใช้ appId ของโดเมน onrender ของหน้านี้)
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function (OneSignal) {
     await OneSignal.init({
-      appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea",
+      appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea", // ← ใส่ appId ที่ผูกไว้กับ https://winner-line-bot-app.onrender.com
     });
   });
 
+  // 2) ดัก "คลิกปุ่ม submit" ครั้งแรก แล้วค่อยส่งฟอร์มหลังผู้ใช้ตอบ
   document.addEventListener("DOMContentLoaded", () => {
-    let asked = false;
+    // หา form login อัตโนมัติ (ไม่ต้องแก้ HTML เดิม)
+    const form =
+      document.querySelector('form[action="/login"]') ||
+      document.getElementById("login-form") ||
+      document.querySelector("form");
 
-    // ดัก submit ของฟอร์ม login เดิม
-    const form = document.getElementById("login-form");
-    if (form) {
-      form.addEventListener("submit", function (e) {
-        if (!asked) {
-          e.preventDefault(); // กันส่งฟอร์มทันที
-          asked = true;       // ให้ถามแค่ครั้งเดียว
+    if (!form) return;
+
+    let asked = false; // ให้ถามแค่ครั้งเดียวในหน้านี้
+
+    // หา control ที่เป็น submit ทั้งหมด (รองรับปุ่มรูปภาพด้วย)
+    const submits = form.querySelectorAll(
+      'button[type="submit"], input[type="submit"], input[type="image"]'
+    );
+
+    // เรียก prompt "ใน click handler" เพื่อให้ iOS ยอม
+    submits.forEach((btn) => {
+      btn.addEventListener(
+        "click",
+        (ev) => {
+          if (asked) return; // ครั้งต่อไปปล่อยให้ส่งปกติ
+          asked = true;
+
+          // กันส่งฟอร์มทันที เพื่อให้ผู้ใช้ตอบ popup ก่อน
+          ev.preventDefault();
+
+          // เรียก prompt แบบ synchronous (ไม่ await) — iOS ยอม
           try {
             OneSignal.Slidedown.promptPush();
-          } catch (err) {
-            console.log("Prompt error:", err);
-          } finally {
-            // ส่งฟอร์มต่อหลัง popup
-            form.submit();
+          } catch (e) {
+            // no-op
           }
-        }
-      });
-    }
+
+          // รอให้ผู้ใช้ตอบ หรือครบเวลาสูงสุด แล้วค่อย submit ฟอร์ม
+          const startPerm =
+            (typeof Notification !== "undefined" && Notification.permission) ||
+            "default";
+          const start = Date.now();
+          const timeoutMs = 15000; // เผื่อสุดๆ 15 วินาที
+
+          const tick = setInterval(() => {
+            const perm =
+              (typeof Notification !== "undefined" && Notification.permission) ||
+              "default";
+
+            // ส่งต่อเมื่อสิทธิ์เปลี่ยน (default -> granted/denied) หรือหมดเวลา
+            if (perm !== startPerm || Date.now() - start > timeoutMs) {
+              clearInterval(tick);
+              form.submit(); // ส่งฟอร์มไป /login
+            }
+          }, 400);
+        },
+        { capture: true } // ให้มาก่อน handler อื่น ๆ
+      );
+    });
   });
 </script>
+
 
 
 
