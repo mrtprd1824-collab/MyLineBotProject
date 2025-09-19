@@ -5,6 +5,77 @@
     <meta charset="UTF-8">
     <title>Login - MyLineBotProject</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- OneSignal v16 -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
+
+    <!-- ปุ่มลอยสำหรับเปิดแจ้งเตือน (เริ่มซ่อนไว้) -->
+    <button id="enable-push" style="position:fixed; right:16px; bottom:16px; z-index:9999;
+               padding:10px 14px; border:0; border-radius:999px;
+               box-shadow:0 6px 20px rgba(0,0,0,.15);
+               background:#2f80ed; color:#fff; display:none;">
+        🔔 เปิดการแจ้งเตือน
+    </button>
+
+    <script>
+        // --- ตั้งค่า OneSignal (ใช้ appId ของ 'โดเมนหน้านี้') ---
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function (OneSignal) {
+            await OneSignal.init({ appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea" });
+        });
+
+        // --- helper ตรวจ iOS และเปิดจากไอคอนหรือยัง ---
+        const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const isStandalone = () =>
+            window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+        // แบนเนอร์สั้น ๆ แนะนำ Add to Home Screen (แสดงครั้งเดียว)
+        function showA2HSHintOnce() {
+            if (!isIOS() || isStandalone()) return;
+            if (localStorage.getItem('a2hs_hint_shown')) return;
+
+            const bar = document.createElement('div');
+            bar.style = "position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#111;color:#fff;padding:12px 14px;display:flex;gap:10px;align-items:center";
+            bar.innerHTML = `
+      <span style="font-size:20px">📲</span>
+      <span>บน iPhone ให้ไปที่ <b>แชร์</b> → <b>เพิ่มไปยังหน้าจอโฮม</b> แล้วเปิดจากไอคอน เพื่อเปิดแจ้งเตือนได้</span>
+      <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
+    `;
+            document.body.appendChild(bar);
+            document.getElementById('hint-close').onclick = () => {
+                localStorage.setItem('a2hs_hint_shown', '1');
+                bar.remove();
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('enable-push');
+
+            // แสดงปุ่มเมื่อยังไม่ได้อนุญาต (หรือยังไม่เคยถาม)
+            const perm = (typeof Notification !== "undefined" && Notification.permission) || "default";
+            if (perm !== 'granted') {
+                btn.style.display = 'inline-block';
+            }
+
+            // iOS ที่ยังไม่ได้ Add to Home Screen → โชว์คำแนะนำหนึ่งครั้ง
+            showA2HSHintOnce();
+
+            // คลิกปุ่มแล้วขอสิทธิ์ (ตามกฎ iOS ต้องเรียกใน click handler ตรง ๆ)
+            btn.addEventListener('click', () => {
+                if (isIOS() && !isStandalone()) {
+                    // ยังไม่ติดตั้งเป็นไอคอน → แจ้งผู้ใช้
+                    alert("บน iPhone กรุณา Add to Home Screen ก่อน (Share → Add to Home Screen) แล้วเปิดจากไอคอนเพื่อเปิดแจ้งเตือนได้");
+                    return;
+                }
+                try { OneSignal.Slidedown.promptPush(); } catch (e) { }
+            });
+
+            // ถ้าอนุญาตแล้วภายหลัง ค่อยซ่อนปุ่ม (โพลลิ่งแบบเบา ๆ)
+            const t = setInterval(() => {
+                const p = (typeof Notification !== "undefined" && Notification.permission) || "default";
+                if (p === 'granted') { btn.style.display = 'none'; clearInterval(t); }
+            }, 1000);
+        });
+    </script>
 
 
 </head>
@@ -48,83 +119,6 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- OneSignal v16 -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
-
-<!-- ปุ่มลอยสำหรับเปิดแจ้งเตือน (เริ่มซ่อนไว้) -->
-<button id="enable-push"
-        style="position:fixed; right:16px; bottom:16px; z-index:9999;
-               padding:10px 14px; border:0; border-radius:999px;
-               box-shadow:0 6px 20px rgba(0,0,0,.15);
-               background:#2f80ed; color:#fff; display:none;">
-  🔔 เปิดการแจ้งเตือน
-</button>
-
-<script>
-  // --- ตั้งค่า OneSignal (ใช้ appId ของ 'โดเมนหน้านี้') ---
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function (OneSignal) {
-    await OneSignal.init({ appId: "734a6a1a-34a2-497a-a7e7-2e1e45d46bea" });
-  });
-
-  // --- helper ตรวจ iOS และเปิดจากไอคอนหรือยัง ---
-  const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isStandalone = () =>
-    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-
-  // แบนเนอร์สั้น ๆ แนะนำ Add to Home Screen (แสดงครั้งเดียว)
-  function showA2HSHintOnce() {
-    if (!isIOS() || isStandalone()) return;
-    if (localStorage.getItem('a2hs_hint_shown')) return;
-
-    const bar = document.createElement('div');
-    bar.style = "position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#111;color:#fff;padding:12px 14px;display:flex;gap:10px;align-items:center";
-    bar.innerHTML = `
-      <span style="font-size:20px">📲</span>
-      <span>บน iPhone ให้ไปที่ <b>Share</b> → <b>Add to Home Screen</b> แล้วเปิดจากไอคอน เพื่อเปิดแจ้งเตือนได้</span>
-      <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
-    `;
-    document.body.appendChild(bar);
-    document.getElementById('hint-close').onclick = () => {
-      localStorage.setItem('a2hs_hint_shown','1');
-      bar.remove();
-    };
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('enable-push');
-
-    // แสดงปุ่มเมื่อยังไม่ได้อนุญาต (หรือยังไม่เคยถาม)
-    const perm = (typeof Notification !== "undefined" && Notification.permission) || "default";
-    if (perm !== 'granted') {
-      btn.style.display = 'inline-block';
-    }
-
-    // iOS ที่ยังไม่ได้ Add to Home Screen → โชว์คำแนะนำหนึ่งครั้ง
-    showA2HSHintOnce();
-
-    // คลิกปุ่มแล้วขอสิทธิ์ (ตามกฎ iOS ต้องเรียกใน click handler ตรง ๆ)
-    btn.addEventListener('click', () => {
-      if (isIOS() && !isStandalone()) {
-        // ยังไม่ติดตั้งเป็นไอคอน → แจ้งผู้ใช้
-        alert("บน iPhone กรุณา Add to Home Screen ก่อน (Share → Add to Home Screen) แล้วเปิดจากไอคอนเพื่อเปิดแจ้งเตือนได้");
-        return;
-      }
-      try { OneSignal.Slidedown.promptPush(); } catch(e) {}
-    });
-
-    // ถ้าอนุญาตแล้วภายหลัง ค่อยซ่อนปุ่ม (โพลลิ่งแบบเบา ๆ)
-    const t = setInterval(() => {
-      const p = (typeof Notification !== "undefined" && Notification.permission) || "default";
-      if (p === 'granted') { btn.style.display = 'none'; clearInterval(t); }
-    }, 1000);
-  });
-</script>
-
-
-
-
 </body>
 
 </html>
