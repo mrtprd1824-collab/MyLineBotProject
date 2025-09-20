@@ -13,7 +13,7 @@
                padding:10px 14px; border:0; border-radius:999px;
                box-shadow:0 6px 20px rgba(0,0,0,.15);
                background:#2f80ed; color:#fff; display:none;">
-        🔔 เปิดการแจ้งเตือน
+        📱 เล่นเกมผ่านแอปพลิเคชัน
     </button>
 
     <script>
@@ -36,10 +36,15 @@
             const bar = document.createElement('div');
             bar.style = "position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#111;color:#fff;padding:12px 14px;display:flex;gap:10px;align-items:center";
             bar.innerHTML = `
-      <span style="font-size:20px">📲</span>
-      <span>บน iPhone ให้ไปที่ <b>แชร์</b> → <b>เพิ่มไปยังหน้าจอโฮม</b> แล้วเปิดจากไอคอน เพื่อเปิดแจ้งเตือนได้</span>
-      <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
-    `;
+            <span style="font-size:20px">📲</span>
+            <span>
+                ระบบ iOS เช่น iPhone ทำตามขั้นตอนนี้<br>
+                1. กดไปที่ปุ่มแชร์ ขวามือของแถบลิงก์<br>
+                2. กดเพิ่มไปที่หน้าจอโฮม<br>
+                ทำ 2 ขั้นตอนนี้ จะสามารถเข้าเล่นเกมผ่านแอปพลิเคชันได้ค่ะ
+            </span>
+                <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
+            `;
             document.body.appendChild(bar);
             document.getElementById('hint-close').onclick = () => {
                 localStorage.setItem('a2hs_hint_shown', '1');
