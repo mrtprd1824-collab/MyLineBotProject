@@ -5,17 +5,8 @@
     <meta charset="UTF-8">
     <title>Login - MyLineBotProject</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- OneSignal v16 -->
+        <!-- OneSignal v16 -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"></script>
-
-    <!-- ปุ่มลอยสำหรับเปิดแจ้งเตือน (เริ่มซ่อนไว้) -->
-    <button id="enable-push" style="position:fixed; right:16px; bottom:16px; z-index:9999;
-               padding:10px 14px; border:0; border-radius:999px;
-               box-shadow:0 6px 20px rgba(0,0,0,.15);
-               background:#2f80ed; color:#fff; display:none;">
-        📱 เล่นเกมผ่านแอปพลิเคชัน
-    </button>
-
     <script>
         // --- ตั้งค่า OneSignal (ใช้ appId ของ 'โดเมนหน้านี้') ---
         window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -37,11 +28,7 @@
             bar.style = "position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#111;color:#fff;padding:12px 14px;display:flex;gap:10px;align-items:center";
             bar.innerHTML = `
             <span style="font-size:20px">📲</span>
-            <span>
-                ระบบ iOS เช่น iPhone ทำตามขั้นตอนนี้<br>
-                1. กดไปที่ปุ่มแชร์ ขวามือของแถบลิงก์<br>
-                2. กดเพิ่มไปที่หน้าจอโฮม<br>
-                ทำ 2 ขั้นตอนนี้ จะสามารถเข้าเล่นเกมผ่านแอปพลิเคชันได้ค่ะ
+            <span> กดเพื่อเข้าเล่นเกมแอปพลิเคชัน
             </span>
                 <button id="hint-close" style="margin-left:auto;background:#2f80ed;color:#fff;border:0;border-radius:8px;padding:6px 10px">ปิด</button>
             `;
@@ -67,8 +54,12 @@
             // คลิกปุ่มแล้วขอสิทธิ์ (ตามกฎ iOS ต้องเรียกใน click handler ตรง ๆ)
             btn.addEventListener('click', () => {
                 if (isIOS() && !isStandalone()) {
-                    // ยังไม่ติดตั้งเป็นไอคอน → แจ้งผู้ใช้
-                    alert("บน iPhone กรุณา Add to Home Screen ก่อน (Share → Add to Home Screen) แล้วเปิดจากไอคอนเพื่อเปิดแจ้งเตือนได้");
+                    alert(
+                        "ระบบ iOS เช่น iPhone ทำตามขั้นตอนนี้\n" +
+                        "1. กดไปที่ปุ่มแชร์ ขวามือของแถบลิงก์\n" +
+                        "2. กดเพิ่มไปที่หน้าจอโฮม\n" +
+                        "ทำ 2 ขั้นตอนนี้ จะสามารถเข้าเล่นเกมผ่านแอปพลิเคชันได้ค่ะ"
+                    );
                     return;
                 }
                 try { OneSignal.Slidedown.promptPush(); } catch (e) { }
@@ -81,7 +72,27 @@
             }, 1000);
         });
     </script>
+    <!-- ปุ่มลอยสำหรับเปิดแจ้งเตือน (เริ่มซ่อนไว้) -->
+    <button id="enable-push" style="position:fixed; right:16px; bottom:16px; z-index:9999;
+               padding:10px 14px; border:0; border-radius:999px;
+               box-shadow:0 6px 20px rgba(0,0,0,.15);
+               background:#2f80ed; color:#fff; display:none;">
+        📱 เล่นเกมผ่านแอปพลิเคชัน
+    </button>
+    <script>
+        const btn = document.getElementById('enable-push');
+        const bar = document.getElementById('a2hsBar'); // เปลี่ยนเป็น id/class ของแถบล่างที่มีจริง
+        const pad = 50;                                  // ระยะกันชนเพิ่มจากแถบ
 
+        function bump() {
+            const h = bar ? bar.getBoundingClientRect().height : 0;
+            // ยกปุ่มขึ้นเหนือแถบ + เผื่อ safe-area (iPhone มีขอบล่าง)
+            btn.style.bottom = `calc(env(safe-area-inset-bottom, 0px) + ${16 + h + pad}px)`;
+        }
+
+        bump();
+        window.addEventListener('resize', bump);
+    </script>
 
 </head>
 
